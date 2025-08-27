@@ -1,6 +1,8 @@
 
+
 # Project Architecture (Stepwise)
 
+```
 VS Code (Development)
    │
 Git (Commit/Push)
@@ -28,3 +30,4 @@ GitHub Actions Workflow
        └─ package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
           │
 Azure Web App (Deployed)
+```
