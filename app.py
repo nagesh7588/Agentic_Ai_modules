@@ -1,3 +1,4 @@
+# Azure App Service compatibility: ensure app runs with gunicorn or flask
 from flask import Flask, request, jsonify, render_template_string
 from auth import authenticate_user
 from credit_risk import CreditRiskPredictor
@@ -47,13 +48,25 @@ def fraud_detection_endpoint():
         input_data = request.get_json()
     else:
         input_data = {k: request.form[k] for k in request.form}
-    # Map form fields to model features
-    features = ['Time'] + [f'V{i}' for i in range(1,29)] + ['Amount']
-    for f in features:
-        if f in input_data:
-            input_data[f] = float(input_data[f])
+    # Ensure all required fields are present
+    required = ['transaction_amount', 'account_age', 'transaction_type', 'location']
+    for f in required:
+        if f not in input_data:
+            return jsonify({'error': f'Missing field: {f}'}), 400
+    # Convert numeric fields
+    try:
+        input_data['transaction_amount'] = float(input_data['transaction_amount'])
+        input_data['account_age'] = float(input_data['account_age'])
+    except Exception:
+        return jsonify({'error': 'Invalid numeric input'}), 400
+    # Pass all fields to model
     result = fraud_detector.detect(input_data)
-    return jsonify(result)
+    # Ensure output keys match dashboard expectations
+    output = {
+        'fraud_probability': result.get('fraud_probability', ''),
+        'fraud_status': result.get('fraud_status', '')
+    }
+    return jsonify(output)
 
 @app.route('/churn-prediction', methods=['POST'])
 def churn_prediction_endpoint():
@@ -141,11 +154,10 @@ dashboard_html = '''
     <div class="panel">
         <form id="fraudForm" onsubmit="return submitForm('fraudForm', '/fraud-detection', 'fraudResult')" autocomplete="off">
             <h2>Fraud Detection</h2>
-            <label>Time: <input name="Time" type="number" required></label><br>
-            <label>V1: <input name="V1" type="number" step="any" required></label><br>
-            <label>V2: <input name="V2" type="number" step="any" required></label><br>
-            <label>V3: <input name="V3" type="number" step="any" required></label><br>
-            <label>Amount: <input name="Amount" type="number" step="any" required></label><br>
+            <label>Transaction Amount: <input name="transaction_amount" type="number" required></label><br>
+            <label>Account Age: <input name="account_age" type="number" required></label><br>
+            <label>Transaction Type: <select name="transaction_type"><option>transfer</option><option>payment</option><option>withdrawal</option></select></label><br>
+            <label>Location: <select name="location"><option>NY</option><option>CA</option><option>TX</option></select></label><br>
             <button type="submit">Detect Fraud</button>
         </form>
         <div id="fraudResult" class="result"></div>
